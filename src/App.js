@@ -1,56 +1,50 @@
 import React from 'react';
-import Protected from './Protected';
+import UserInfo from './UserInfo';
 import Public from './Public';
 import netlifyIdentity from 'netlify-identity-widget';
 import {
   BrowserRouter as Router,
   Route,
   Link,
-  Redirect,
-  withRouter
+  Redirect
 } from 'react-router-dom';
 
-// copied straight from https://reacttraining.com/react-router/web/example/auth-workflow
-////////////////////////////////////////////////////////////
-// 1. Click the public page
-// 2. Click the protected page
-// 3. Log in
-// 4. Click the back button, note the URL each time
 
 function AuthExample() {
   return (
     <Router>
-      <div>
-        <AuthButton />
+      <div className="container">
+        <Login />
         <ul>
           <li>
             <Link to="/public">Public Page</Link>
           </li>
           <li>
-            <Link to="/protected">Protected Page</Link>
+            <Link to="/userinfo">UserInfo Page</Link>
           </li>
         </ul>
         <Route path="/public" component={Public} />
-        <Route path="/login" component={Login} />
-        <PrivateRoute path="/protected" component={Protected} />
+        <Route path="/unauthorized" component={UnauthorizedPage} />
+        <PrivateRoute path="/userinfo" component={UserInfo} />
       </div>
     </Router>
   );
 }
 
 const netlifyAuth = {
-  isAuthenticated: false,
+  isAuthenticated() {
+    return !!netlifyIdentity.currentUser()
+  },
   user: null,
   authenticate(callback) {
-    this.isAuthenticated = true;
     netlifyIdentity.open();
     netlifyIdentity.on('login', user => {
       this.user = user;
       callback(user);
+      netlifyIdentity.close();
     });
   },
   signout(callback) {
-    this.isAuthenticated = false;
     netlifyIdentity.logout();
     netlifyIdentity.on('logout', () => {
       this.user = null;
@@ -59,65 +53,63 @@ const netlifyAuth = {
   }
 };
 
-const AuthButton = withRouter(
-  ({ history }) =>
-    netlifyAuth.isAuthenticated ? (
-      <p>
-        Welcome!{' '}
-        <button
-          onClick={() => {
-            netlifyAuth.signout(() => history.push('/'));
-          }}
-        >
-          Sign out
-        </button>
-      </p>
-    ) : (
-      <p>You are not logged in.</p>
-    )
-);
-
 function PrivateRoute({ component: Component, ...rest }) {
   return (
     <Route
       {...rest}
       render={props =>
-        netlifyAuth.isAuthenticated ? (
+        netlifyAuth.isAuthenticated() ? (
           <Component {...props} />
         ) : (
-          <Redirect
-            to={{
-              pathname: '/login',
-              state: { from: props.location }
-            }}
-          />
-        )
+            <Redirect
+              to={{
+                pathname: '/unauthorized',
+              }}
+            />
+          )
       }
     />
   );
 }
 
+const UnauthorizedPage = () => (
+  <div className="container">
+    <h3>Log in to see this page</h3>
+  </div>
+)
 class Login extends React.Component {
-  state = { redirectToReferrer: false };
+  state = { loggedIn: netlifyAuth.isAuthenticated() };
 
   login = () => {
     netlifyAuth.authenticate(() => {
-      this.setState({ redirectToReferrer: true });
+      this.setState({ loggedIn: netlifyAuth.isAuthenticated() });
+    });
+  };
+
+  logout = () => {
+    netlifyAuth.signout(() => {
+      this.setState({ loggedIn: netlifyAuth.isAuthenticated() });
     });
   };
 
   render() {
-    let { from } = this.props.location.state || { from: { pathname: '/' } };
-    let { redirectToReferrer } = this.state;
-
-    if (redirectToReferrer) return <Redirect to={from} />;
-
-    return (
-      <div>
-        <p>You must log in to view the page at {from.pathname}</p>
-        <button onClick={this.login}>Log in</button>
+    let { loggedIn } = this.state;
+    console.log("Logged in:", loggedIn)
+    if (loggedIn) {
+      const user = netlifyIdentity.currentUser();
+      return <div className="container">
+        <p> Logged in as {user.email} </p>
+        <button onClick={this.logout}>Log Out</button>
       </div>
-    );
+    } else {
+      return (
+        <div className="container">
+          <p>You are not logged in</p>
+          <button onClick={this.login}>Log in</button>
+        </div>
+      );
+    }
+
   }
 }
 export default AuthExample;

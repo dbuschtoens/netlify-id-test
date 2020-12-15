@@ -1,12 +1,14 @@
 import React from 'react';
 import netlifyIdentity from 'netlify-identity-widget';
-export default function Protected() {
+import ReactJson from 'react-json-view'
+
+export default function UserInfo() {
   const user = netlifyIdentity.currentUser();
   console.log({ user });
   return (
     <div>
-      <h3>Protected Page</h3>
-      You are logged in as <b>{user.email}</b>
+      <h3>UserInfo Page</h3>
+      <ReactJson src={user} />
     </div>
   );
 }
